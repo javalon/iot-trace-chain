@@ -1,0 +1,63 @@
+[project]
+name = "persistence-worker"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Javier Alonso",email = "jalonsonunez@gmail.com"}
+]
+license = "MIT"
+readme = "README.md"
+requires-python = ">=3.12,<4"
+dependencies = [
+    "black (>=25.1.0,<26.0.0)",
+    "ruff (>=0.9.7,<0.10.0)",
+    "pytest (>=8.3.4,<9.0.0)",
+    "pre-commit (>=4.1.0,<5.0.0)",
+    "web3 (>=7.8.0,<8.0.0) ; python_version >= '3.12' and python_version < '4'",
+    "merklelib (>=1.0,<2.0)",
+    "paho-mqtt (>=2.1.0,<3.0.0)",
+    "pyspark (>=3.5.5,<4.0.0)",
+    "delta-spark (>=3.3.0,<4.0.0)",
+    "dotenv (>=0.9.9,<0.10.0)",
+    "jsonschema (>=4.23.0,<5.0.0)",
+    "json-log-formatter (>=1.1.1,<2.0.0)"
+]
+
+[tool.poetry]
+packages = [{include = "persistence_worker"}]
+
+[tool.poetry.scripts]
+persistence-worker = "persistence_worker.__main__:main"
+
+[tool.poetry.group.dev.dependencies]
+poethepoet = "^0.33.1"
+pytest = "^8.3.5"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+
+[tool.black]
+skip-string-normalization = true
+line-length = 120
+
+[tool.ruff]
+line-length = 120
+exclude = ["jupyter_notebook_config.py"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "C", "B"]
+ignore = ["E501", "C901"]
+
+[tool.ruff.lint.isort]
+order-by-type = true
+relative-imports-order = "closest-to-furthest"
+extra-standard-library = ["typing"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+known-first-party = []
+
+[tool.poe.tasks]
+start-local = {cmd = "python persistence_worker/__main__.py", env = { AWS_S3_SECURE = "false", BLOCKCHAIN_NODE = "http://localhost:8545", AWS_ACCESS_KEY_ID = "minioadmin", AWS_SECRET_ACCESS_KEY = "minioadmin", AWS_S3_ENDPOINT_URL = "http://localhost:9000"}}
+start-local-profiling = {cmd = "python persistence_worker/__main__.py", env = { AWS_S3_SECURE = "false", BLOCKCHAIN_NODE = "http://localhost:8545", AWS_ACCESS_KEY_ID = "minioadmin", AWS_SECRET_ACCESS_KEY = "minioadmin", AWS_S3_ENDPOINT_URL = "http://localhost:9000", ENABLE_PROFILING = "true"}}
+publish-message =  {cmd = "sh scripts/publish_message.sh", env = { MOSQUITTO_HOST = "localhost", MOSQUITTO_TOPIC = "iot-data", DATA_ITEMS = "10"}}

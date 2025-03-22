@@ -1,0 +1,193 @@
+services:
+  mosquitto-service:
+    image: eclipse-mosquitto:latest
+    container_name: mosquitto
+    restart: always
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    networks:
+      - eth-network
+
+  hardhat-node:
+    image: node:18
+    container_name: hardhat-node
+    working_dir: /usr/src/app
+    volumes:
+      - ./blockchain:/usr/src/app
+    command: >
+      sh -c "npx hardhat node"
+    ports:
+      - "8545:8545"
+    networks:
+      - eth-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8545"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  hardhat-smart-contract:
+    image: node:18
+    container_name: hardhat-smart-contract
+    working_dir: /usr/src/app
+    volumes:
+      - ./blockchain:/usr/src/app
+    command: >
+      sh -c "npx hardhat run scripts/deploy.js --network hardhat-node"
+    depends_on:
+      hardhat-node:
+        condition: service_healthy
+
+    networks:
+      - eth-network
+
+  minio:
+    image: minio/minio
+    container_name: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ENV_MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ENV_MINIO_SECRET_KEY:-minioadmin}
+    command: server --console-address ":9001" /data
+    volumes:
+      - .minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://minio:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - eth-network
+
+  minio-create-bucket:
+    image: minio/mc
+    container_name: minio-create-bucket
+    entrypoint: >
+      /bin/sh -c "
+        printenv
+        until (mc alias set minio http://minio:9000 ${MINIO_ENV_MINIO_ACCESS_KEY:-minioadmin} ${MINIO_ENV_MINIO_SECRET_KEY:-minioadmin}) do
+          echo 'Waiting for Minio to start...' && sleep 1;
+        done;
+        if ! mc ls minio/${MINIO_BUCKET:-iot-data} > /dev/null 2>&1; then
+          mc mb minio/${MINIO_BUCKET:-iot-data}
+        else
+          echo 'Bucket already exists.'
+        fi
+        "
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - eth-network
+
+  persistence-worker:
+    build: ./persistence-worker
+    container_name: persistence-worker
+    environment:
+      - AWS_S3_ENDPOINT_URL=http://minio:9000
+      - AWS_ACCESS_KEY_ID=${MINIO_ENV_MINIO_ACCESS_KEY:-minioadmin}
+      - AWS_SECRET_ACCESS_KEY=${MINIO_ENV_MINIO_SECRET_KEY:-minioadmin}
+      - AWS_REGION=us-east-1
+      - AWS_BUCKET_NAME=${MINIO_BUCKET:-iot-data}
+      - AWS_S3_ENDPOINT_URL=${MINIO_ENDPOINT_URL:-http://minio:9000}
+      - BLOCKCHAIN_NODE=http://hardhat-node:8545
+      - MQTT_BROKER=mosquitto-service
+      - MQTT_PORT=1883
+      - MQTT_TOPIC=iot_data
+      - RUNNING_IN_DOCKER=1
+    restart: always
+    depends_on:
+      minio:
+        condition: service_healthy
+      hardhat-node:
+        condition: service_healthy
+      mosquitto-service:
+        condition: service_started
+    networks:
+      - eth-network
+
+# Manually start services with `docker compose --profile=manual up <service-name>`
+# to avoid starting them with `docker compose up`.
+# This is useful for services that are not needed for the main application to run.
+
+# Explore the blockchain data
+  expedition:
+    image: etclabscore/expedition:latest
+    profiles:
+      - manual
+    container_name: expedition
+    ports:
+      - "3001:80"
+    depends_on:
+      hardhat-node:
+        condition: service_healthy
+    environment:
+      - REACT_APP_ETH_RPC_URL=http://localhost:8545
+    networks:
+      - eth-network
+
+# Explore the MQTT data
+  mqtt-explorer:
+    image: smeagolworms4/mqtt-explorer:latest
+    profiles:
+      - manual
+    container_name: mqtt-explorer
+    restart: always
+    ports:
+      - '8080:4000'
+
+# The MinIO Mirror service make a local copy of the data stored in the MinIO bucket.
+# The data is stored in the 'minio-mirror' directory.
+  minio-mirror:
+    image: minio/mc
+    profiles:
+      - manual
+    container_name: minio-mirror
+    entrypoint: >
+      /bin/sh -c "
+        echo 'Waiting for MinIO to be available...' &&
+        until (mc alias set minio http://minio:9000 ${MINIO_ENV_MINIO_ACCESS_KEY:-minioadmin} ${MINIO_ENV_MINIO_SECRET_KEY:-minioadmin}); do
+          sleep 2;
+        done;
+        mkdir -p /data/mirror &&
+        mc mirror --watch --overwrite minio/iot-data /data/mirror
+      "
+    volumes:
+      - ./minio-mirror:/data/mirror
+    restart: no
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - eth-network
+
+# The DuckDB container is started with an interactive shell, so you can run DuckDB commands directly in the container.
+# To start to work with examne the data in the 'minio-mirror' directory, you need to run the nimio-mirror service first.
+# To runt nimio-mirror service, you need to run the `docker compose -f docker-compose.yaml up minio-mirror` command.
+# To start the DuckDB container, run `docker compose -f docker-compose.duckdb.yaml up -d`.
+# To enter the DuckDB container, run `docker exec -it duckdb /bin/bash`.
+# To start the DuckDB shell, run `duckdb`.
+# Example queries:
+#   - SELECT * FROM parquet_scan('/data/iot-data/*.parquet');
+#   - SELECT device_id, CAST(data['temp'][1] AS INTEGER) AS temperature, strftime(TO_TIMESTAMP(CAST(timestamp AS BIGINT)), '%d/%m/%Y %H:%M:%S') AS formatted_ts FROM parquet_scan('/data/iot-data/*.parquet');
+  duckdb:
+    image: qldrsc/duckdb
+    profiles:
+      - manual
+    container_name: duckdb
+    entrypoint: /bin/sh
+    stdin_open: true
+    tty: true
+    working_dir: /data
+    volumes:
+      - ./minio-mirror:/data
+
+networks:
+  eth-network:
+    driver: bridge

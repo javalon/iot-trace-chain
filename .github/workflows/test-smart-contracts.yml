@@ -1,0 +1,31 @@
+name: Test Smart Contracts
+
+on:
+    push:
+        paths:
+            - 'blockchain/**'
+    pull_request:
+        paths:
+            - 'blockchain/**'
+    workflow_dispatch:
+
+jobs:
+    test-smart-contracts:
+        runs-on: ubuntu-latest
+
+        steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+
+        - name: Set up Node.js
+          uses: actions/setup-node@v3
+          with:
+            node-version: '18'
+
+        - name: Install dependencies
+          run: npm install
+          working-directory: ./blockchain
+
+        - name: Run smart contract tests
+          run: npx hardhat test
+          working-directory: ./blockchain
