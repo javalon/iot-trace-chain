@@ -1,0 +1,41 @@
+<h2>Lista de Usuarios</h2>
+
+<div style="display: flex; justify-content: center; margin-top: 16px;">
+    <div *ngIf="!dataSource?.data" class="no-data-message">
+        <mat-icon aria-hidden="false" aria-label="Info" fontIcon="info"></mat-icon>
+        <span>No hay dispositivos</span>
+    </div>
+
+    <mat-spinner *ngIf="loading"></mat-spinner>
+</div>
+<div *ngIf="error" style="color: red;">{{ error }}</div>
+
+<mat-table [dataSource]="dataSource" class="mat-elevation-z8" *ngIf="!loading && !error">
+
+  <!-- ID Column -->
+  <ng-container matColumnDef="id">
+    <mat-header-cell *matHeaderCellDef>ID</mat-header-cell>
+    <mat-cell *matCellDef="let user">{{ user.id }}</mat-cell>
+  </ng-container>
+
+  <!-- Name Column -->
+  <ng-container matColumnDef="username">
+    <mat-header-cell *matHeaderCellDef>Nombre</mat-header-cell>
+    <mat-cell *matCellDef="let user">{{ user.username }}</mat-cell>
+  </ng-container>
+
+  <!-- Email Column -->
+  <ng-container matColumnDef="email">
+    <mat-header-cell *matHeaderCellDef>Email</mat-header-cell>
+    <mat-cell *matCellDef="let user">{{ user.email }}</mat-cell>
+  </ng-container>
+
+  <!-- Role Column -->
+  <ng-container matColumnDef="role">
+    <mat-header-cell *matHeaderCellDef>Rol</mat-header-cell>
+    <mat-cell *matCellDef="let user">{{ user.role }}</mat-cell>
+  </ng-container>
+
+  <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
+  <mat-row *matRowDef="let row; columns: displayedColumns;"></mat-row>
+</mat-table>

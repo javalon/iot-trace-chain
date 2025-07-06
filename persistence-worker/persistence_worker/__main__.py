@@ -2,7 +2,7 @@ import signal
 
 from persistence_worker.blockchain import Blockchain
 from persistence_worker.data_processor_complex import DataProcessorComplex
-from persistence_worker.delta_writer import DeltaWriter
+from persistence_worker.delta_writer_simple import DeltaWriter
 from persistence_worker.mqtt_client import MQTTClient
 from persistence_worker.utils.config import (
     AWS_ACCESS_KEY,

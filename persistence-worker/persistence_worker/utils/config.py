@@ -21,8 +21,9 @@ AWS_S3_ENDPOINT_URL = os.getenv("AWS_S3_ENDPOINT_URL", "s3.amazonaws.com")
 AWS_S3_SECURE = os.getenv("AWS_S3_SECURE", "false") == "true"
 
 BLOCKCHAIN_NODE = os.getenv("BLOCKCHAIN_NODE", "http://localhost:8545")
-BLOCKCHAIN_CONTRACT_ADDRESS = os.getenv("BLOCKCHAIN_CONTRACT_ADDRESS", "0x5fbdb2315678afecb367f032d93f642f64180aa3")
+#BLOCKCHAIN_CONTRACT_ADDRESS = os.getenv("BLOCKCHAIN_CONTRACT_ADDRESS", "0x5fbdb2315678afecb367f032d93f642f64180aa3") # Hardhat test contract address
+BLOCKCHAIN_CONTRACT_ADDRESS = os.getenv("BLOCKCHAIN_CONTRACT_ADDRESS", "0x8CdaF0CD259887258Bc13a92C0a6dA92698644C0")  # Ganache test contract address
 
-DELTA_PATH = f"s3a://{AWS_BUCKET_NAME}/iot-data/"
+DELTA_PATH = f"s3a://{AWS_BUCKET_NAME}"
 
 ENABLE_PROFILING = os.getenv("ENABLE_PROFILING", "false") == "true"

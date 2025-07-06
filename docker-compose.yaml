@@ -12,38 +12,78 @@ services:
     networks:
       - eth-network
 
-  hardhat-node:
+  # hardhat-node:
+  #   image: node:18
+  #   container_name: hardhat-node
+  #   working_dir: /usr/src/app
+  #   volumes:
+  #     - ./blockchain:/usr/src/app
+  #     - ./.hardhat-data:/usr/src/app/.hardhat_node
+  #   command: >
+  #     sh -c "npx hardhat node"
+  #   ports:
+  #     - "8545:8545"
+  #   networks:
+  #     - eth-network
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8545"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+  # hardhat-smart-contract:
+  #   image: node:18
+  #   container_name: hardhat-smart-contract
+  #   working_dir: /usr/src/app
+  #   volumes:
+  #     - ./blockchain:/usr/src/app
+  #   command: >
+  #     sh -c "npx hardhat run scripts/deploy.js --network hardhat-node"
+  #   depends_on:
+  #     hardhat-node:
+  #       condition: service_healthy
+  #   networks:
+  #     - eth-network
+
+  ganache-smart-contract:
     image: node:18
-    container_name: hardhat-node
+    container_name: ganache-smart-contract
     working_dir: /usr/src/app
     volumes:
       - ./blockchain:/usr/src/app
     command: >
-      sh -c "npx hardhat node"
+      sh -c "npx hardhat run scripts/deploy.js --network ganache-node"
+    depends_on:
+      ganache-node:
+        condition: service_healthy
+    networks:
+      - eth-network
+
+  ganache-node:
+    container_name: ganache-node
+    platform: linux/amd64
+    build:
+      context: ./blockchain
+      dockerfile: Dockerfile.ganache
+    volumes:
+      - ./.ganache-db:/data
     ports:
       - "8545:8545"
+    command: >
+      --db /data
+      --deterministic
+      --mnemonic "candy maple cake sugar pudding cream honey rich smooth crumble sweet treat"
+      --networkId 1337
+      --defaultBalanceEther 10000
     networks:
       - eth-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8545"]
+      test: ["CMD-SHELL", "nc -z localhost 8545"]
       interval: 10s
-      timeout: 5s
-      retries: 5
-
-  hardhat-smart-contract:
-    image: node:18
-    container_name: hardhat-smart-contract
-    working_dir: /usr/src/app
-    volumes:
-      - ./blockchain:/usr/src/app
-    command: >
-      sh -c "npx hardhat run scripts/deploy.js --network hardhat-node"
-    depends_on:
-      hardhat-node:
-        condition: service_healthy
-
-    networks:
-      - eth-network
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+    
 
   minio:
     image: minio/minio
@@ -70,7 +110,6 @@ services:
     container_name: minio-create-bucket
     entrypoint: >
       /bin/sh -c "
-        printenv
         until (mc alias set minio http://minio:9000 ${MINIO_ENV_MINIO_ACCESS_KEY:-minioadmin} ${MINIO_ENV_MINIO_SECRET_KEY:-minioadmin}) do
           echo 'Waiting for Minio to start...' && sleep 1;
         done;
@@ -90,25 +129,119 @@ services:
     build: ./persistence-worker
     container_name: persistence-worker
     environment:
-      - AWS_S3_ENDPOINT_URL=http://minio:9000
-      - AWS_ACCESS_KEY_ID=${MINIO_ENV_MINIO_ACCESS_KEY:-minioadmin}
-      - AWS_SECRET_ACCESS_KEY=${MINIO_ENV_MINIO_SECRET_KEY:-minioadmin}
-      - AWS_REGION=us-east-1
-      - AWS_BUCKET_NAME=${MINIO_BUCKET:-iot-data}
-      - AWS_S3_ENDPOINT_URL=${MINIO_ENDPOINT_URL:-http://minio:9000}
-      - BLOCKCHAIN_NODE=http://hardhat-node:8545
-      - MQTT_BROKER=mosquitto-service
-      - MQTT_PORT=1883
-      - MQTT_TOPIC=iot_data
-      - RUNNING_IN_DOCKER=1
+      AWS_ACCESS_KEY_ID: ${MINIO_ENV_MINIO_ACCESS_KEY:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ENV_MINIO_SECRET_KEY:-minioadmin}
+      AWS_REGION: us-east-1
+      AWS_BUCKET_NAME: ${MINIO_BUCKET:-iot-data}
+      AWS_S3_ENDPOINT_URL: ${MINIO_ENDPOINT_URL:-http://minio:9000}
+      #BLOCKCHAIN_NODE: http://hardhat-node:8545
+      BLOCKCHAIN_NODE: http://ganache-node:8545
+      MQTT_BROKER: mosquitto-service
+      MQTT_PORT: 1883
+      MQTT_TOPIC: iot_data
+      BLOCKCHAIN_CONTRACT_ADDRESS: 0x8CdaF0CD259887258Bc13a92C0a6dA92698644C0  # Ganache test contract address
+      RUNNING_IN_DOCKER: 1
     restart: always
     depends_on:
       minio:
         condition: service_healthy
-      hardhat-node:
+      ganache-node:
         condition: service_healthy
+      # hardhat-node:
+      #   condition: service_healthy
       mosquitto-service:
         condition: service_started
+    networks:
+      - eth-network
+
+  delta-reader:
+    build: ./delta-reader
+    container_name: delta-reader
+    environment:
+      AWS_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: ${MINIO_ENV_MINIO_ACCESS_KEY:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ENV_MINIO_SECRET_KEY:-minioadmin}
+      AWS_REGION: us-east-1
+      AWS_BUCKET_NAME: ${MINIO_BUCKET:-iot-data}
+      AWS_S3_SECURE: false
+    restart: always
+    ports:
+      - "8005:8005"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://delta-reader:8005/health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - eth-network
+
+  app-postgres:
+    image: postgres:17.5-alpine3.22
+    container_name: app-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-iot_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-iot_password}
+      POSTGRES_DB: ${POSTGRES_DB:-iot_db}
+    volumes:
+      - ./.app-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-iot_user} -d ${POSTGRES_DB:-iot_db}"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    ports:
+      - "5432:5432"
+    networks:
+      - eth-network
+
+  back-api:
+    build: ./back-api
+    container_name: back-api
+    environment:
+      DB_URL: postgresql+psycopg://${POSTGRES_USER:-iot_user}:${POSTGRES_PASSWORD:-iot_password}@app-postgres:5432/${POSTGRES_DB:-iot_db}
+      SECRET_KEY: "job_board_app_secret!"
+      ALGORITHM: "HS256"
+      TOKEN_EXPIRATION_TIME_MINUTES: 15
+      DEVICE_DATA_SERVICE_URL: http://delta-reader:8005
+    restart: always
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://back-api:8000/health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    depends_on:
+      app-postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      ganache-node:
+        condition: service_healthy
+      # hardhat-node:
+      #   condition: service_healthy
+      mosquitto-service:
+        condition: service_started
+      delta-reader:
+        condition: service_healthy
+    networks:
+      - eth-network
+
+  front-end:
+    build: ./iot-chain-front
+    container_name: iot-chain-front
+    environment:
+      APP_BACKEND_URL: http://back-api:8000
+      NODE_ENV: production
+    restart: always
+    ports:
+      - "4200:80"
+    depends_on:
+      back-api:
+        condition: service_healthy
     networks:
       - eth-network
 

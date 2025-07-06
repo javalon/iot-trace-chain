@@ -27,10 +27,10 @@ class DataProcessorComplex:
 
             device_id = get_device_id(iot_data["mac"], iot_data["imei"])
             merkleroot, data_to_save = prepare_data_to_save(device_id, iot_data)
-
             record_id, tx_hash = self.__store_blockchain_hash(device_id, merkleroot)
             self.logger.info("tx_hash: %s", tx_hash)
-            self.logger.info("Data recorded on blockchain!")
+            self.logger.info("Record ID: %s", record_id)
+            self.logger.info("Data from device %s recorded on blockchain!", device_id)
 
             self.__store_persistence(device_id, data_to_save, tx_hash, record_id)
         except json.JSONDecodeError as e:
@@ -41,8 +41,8 @@ class DataProcessorComplex:
             self.logger.error("❌ Unexpected error: %s", e)
 
     def __store_blockchain_hash(self, device_id, data_hash):
-        tx_hash = self.blockchain.store_data_in_blockchain(device_id, data_hash)
-        return tx_hash.hex()
+        record_id, tx_hash = self.blockchain.store_data_in_blockchain(device_id, data_hash)
+        return record_id, tx_hash.hex()
 
     def __store_persistence(self, device_id, iot_data, tx_hash, record_id):
         for data in iot_data:

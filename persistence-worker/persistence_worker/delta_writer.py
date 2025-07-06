@@ -21,9 +21,10 @@ class DeltaWriter:
         self.delta_path = delta_path
         self.extra_packages = [
             "org.apache.hadoop:hadoop-aws:3.3.4",
-            "org.apache.hadoop:hadoop-common:3.3.4",
+            "org.apache.hadoop:hadoop-client:3.3.4",
             "software.amazon.awssdk:bundle:2.31.5",
             "io.netty:netty-transport-native-epoll:4.1.119.Final",
+            "com.amazonaws:aws-java-sdk-bundle:1.12.578",
         ]
         self.logger = setup_logger(__name__)
 
