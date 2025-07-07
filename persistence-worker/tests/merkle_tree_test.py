@@ -1,8 +1,6 @@
 import pytest
 
-from persistence_worker.utils.hashing import generate_hash
-from persistence_worker.utils.merkle_tree import generate_merkle_proof, generate_merkle_root, verify_merkle_proof
-
+from persistence_worker.utils.merkle_tree import generate_merkle_tree, verify_merkle_proof, generate_hash
 
 def test_generate_merkle_root():
     data = [
@@ -10,7 +8,8 @@ def test_generate_merkle_root():
         {"timestamp": "2021-01-01T00:01:00", "temp": "26"},
         {"timestamp": "2021-01-01T00:02:00", "temp": "27"},
     ]
-    root = generate_merkle_root(data)
+    # root = generate_merkle_root(data)
+    [tree, root] = generate_merkle_tree(data)
 
     assert isinstance(root, str)
     assert len(root) == 64  # SHA-256 hex digest length
@@ -18,19 +17,19 @@ def test_generate_merkle_root():
 
 def test_generate_merkle_root_empty_data():
     with pytest.raises(ValueError, match="Empty data array"):
-        generate_merkle_root([])
+        generate_merkle_tree([])
 
 
 def test_verify_merkle_root_valid():
-    index_to_verify = 0
+    index_to_verify = 1 # because pymerkle uses 1-based indexing
     data = [
         {"timestamp": "2021-01-01T00:00:00", "temp": "25"},
         {"timestamp": "2021-01-01T00:01:00", "temp": "26"},
         {"timestamp": "2021-01-01T00:02:00", "temp": "27"},
     ]
-    leaf_hash = generate_hash(data[index_to_verify])
-    expected_root = generate_merkle_root(data)
-    proof = generate_merkle_proof(data, index_to_verify)
+    [tree, expected_root] = generate_merkle_tree(data)
+    leaf_hash = tree.get_leaf(index_to_verify).hex()
+    proof = tree.prove_inclusion(index_to_verify) 
     assert verify_merkle_proof(leaf_hash, proof, expected_root) is True
 
 
@@ -40,10 +39,10 @@ def test_verify_merkle_root_invalid_root():
         {"timestamp": "2021-01-01T00:01:00", "temp": "26"},
         {"timestamp": "2021-01-01T00:02:00", "temp": "27"},
     ]
-    generate_merkle_root(data)
+    [tree, root] = generate_merkle_tree(data)
     invalid_root = "0" * 64
-    leaf_hash = generate_hash(data[0])
-    proof = generate_merkle_proof(data, 0)
+    leaf_hash = generate_hash(tree, data[0])
+    proof = tree.prove_inclusion(1) # pymerkle uses 1-based indexing
     assert verify_merkle_proof(leaf_hash, proof, invalid_root) is False
 
 
@@ -54,10 +53,10 @@ def test_verify_if_item_belongs_to_merkle_tree():
         {"timestamp": "2021-01-01T00:01:00", "temp": "26"},
         {"timestamp": "2021-01-01T00:02:00", "temp": "27"},
     ]
-    root = generate_merkle_root(data)
-    item = data[index_to_verify]
-    leaf_hash = generate_hash(item)
-    proof = generate_merkle_proof(data, index_to_verify)
+    [tree,root] = generate_merkle_tree(data)
+    leaf_hash = generate_hash(tree, data[index_to_verify])
+
+    proof = tree.prove_inclusion(index_to_verify + 1) # pymerkle uses 1-based indexing
     assert verify_merkle_proof(leaf_hash, proof, root) is True
 
 
@@ -68,10 +67,10 @@ def test_verify_if_item_does_not_belong_to_merkle_tree():
         {"timestamp": "2021-01-01T00:01:00", "temp": "26"},
         {"timestamp": "2021-01-01T00:02:00", "temp": "27"},
     ]
-    root = generate_merkle_root(data)
+    [tree,root] = generate_merkle_tree(data)
     item = {"timestamp": "2021-01-01T00:03:00", "temp": "28"}
-    leaf_hash = generate_hash(item)
-    proof = generate_merkle_proof(data, index_to_verify)
+    leaf_hash = generate_hash(tree, item)
+    proof = tree.prove_inclusion(index_to_verify + 1) # pymerkle uses 1-based indexing
     assert verify_merkle_proof(leaf_hash, proof, root) is False
 
 
@@ -103,8 +102,8 @@ def test_verify_if_item_belongs_to_merkle_tree_loot_items():
         {"timestamp": "2021-01-01T00:22:00", "temp": "26"},
         {"timestamp": "2021-01-01T00:23:00", "temp": "27"},
     ]
-    root = generate_merkle_root(data)
+    [tree,root] = generate_merkle_tree(data)
     item = data[index_to_verify]
-    leaf_hash = generate_hash(item)
-    proof = generate_merkle_proof(data, index_to_verify)
+    leaf_hash = generate_hash(tree, item)
+    proof = tree.prove_inclusion(index_to_verify + 1) # pymerkle uses 1-based indexing
     assert verify_merkle_proof(leaf_hash, proof, root) is True

@@ -1,0 +1,19 @@
+<mat-toolbar color="primary">
+  <span style="flex: 1 1 auto;">
+    <a mat-button routerLink="/" routerLinkActive="active">Inicio</a>
+    <a *ngIf="isAuthenticatedAndAdmin()" mat-button routerLink="/users">Usuarios</a>
+    <a *ngIf="isAuthenticated()" mat-button routerLink="/devices">Dispositivos</a>
+    <a *ngIf="isAuthenticated()" mat-button routerLink="/data">Datos</a>
+  </span>
+
+  <span *ngIf="!isAuthenticated()">
+    <a mat-button routerLink="/login">Iniciar sesión</a>
+  </span>
+
+  <span *ngIf="isAuthenticated()">
+    <button mat-button [matMenuTriggerFor]="userMenu">Hola, {{ getUserName() }}</button>
+    <mat-menu #userMenu="matMenu">
+      <button mat-menu-item (click)="logout()">Cerrar sesión</button>
+    </mat-menu>
+  </span>
+</mat-toolbar>

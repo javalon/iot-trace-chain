@@ -12,6 +12,10 @@ module.exports = {
     'hardhat-node': {
       url: "http://hardhat-node:8545",
       chainId: 31337
+    },
+    'ganache-node': {
+      url: "http://ganache-node:8545",
+      chainId: 1337
     }
   }
 };

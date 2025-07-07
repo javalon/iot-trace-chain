@@ -35,9 +35,15 @@ class Blockchain:
             return None
 
     def __get_record_id(self, receipt) -> str:
-        """Extract the record ID from the transaction receipt."""
-        events = self.contract.events.DataStored().processReceipt(receipt)
-        for event in events:
-            record_id = event["args"]["recordId"]
-            return record_id.hex() if isinstance(record_id, bytes) else record_id
+        """Extract the record ID from the transaction receipt using event logs."""
+        self.logger.info("📜 Extracting record ID from transaction receipt")
+        try:
+            events = self.contract.events.DataStored().process_receipt(receipt)
+            if events and len(events) > 0:
+                event = events[0]
+                record_id = event["args"]["recordId"]
+                return record_id.hex() if isinstance(record_id, bytes) else record_id
+        except Exception as e:
+            self.logger.error(f"❌ Error decoding event logs: {e}")
+        self.logger.error("❌ Record ID not found in transaction receipt")
         return None

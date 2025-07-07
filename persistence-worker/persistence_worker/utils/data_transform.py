@@ -1,4 +1,4 @@
-from persistence_worker.utils.merkle_tree import generate_merkle_proof, generate_merkle_root
+from persistence_worker.utils.merkle_tree import generate_merkle_tree
 from persistence_worker.utils.time_profiling import measure_time
 
 
@@ -31,8 +31,11 @@ def transform_iot_data(device_id, iot_data):
 @measure_time
 def prepare_data_to_save(device_id, iot_data):
     transformed_data = transform_iot_data(device_id, iot_data)
-    merkle_root = generate_merkle_root(transformed_data)
+    #merkle_root = generate_merkle_root(transformed_data)
+    merkle_tree, merkle_root = generate_merkle_tree(transformed_data)
     for i, data in enumerate(transformed_data):
-        proof = generate_merkle_proof(transformed_data, i)
-        data["merkle_proof"] = proof
+        #leaf_hash, merkle_root, proof, valid = generate_merkle_proof(transformed_data, i)
+        proof = merkle_tree.prove_inclusion(i + 1) # pymerkle uses 1-based indexing
+        data["merkle_proof"] = proof.serialize()
+
     return merkle_root, transformed_data

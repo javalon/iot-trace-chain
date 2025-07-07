@@ -1,0 +1,99 @@
+<h2>Lista de Dispositivos</h2>
+
+<div *ngIf="error" style="color: red;">{{ error }}</div>
+
+<button mat-raised-button color="accent" (click)="addDevice()">
+  <mat-icon>add</mat-icon>
+  Añadir Dispositivo
+</button>
+<div style="display: flex; justify-content: center; margin-top: 16px;">
+    <div *ngIf="!dataSource?.data" class="no-data-message">
+        <mat-icon aria-hidden="false" aria-label="Info" fontIcon="info"></mat-icon>
+        <span>No hay dispositivos</span>
+    </div>
+
+    <mat-spinner *ngIf="loading"></mat-spinner>
+</div>
+<mat-card *ngIf="selectedDevice" style="margin-top: 20px;">
+  <mat-card-title>
+    {{ isEditing ? 'Editar Dispositivo' : 'Nuevo Dispositivo' }}
+  </mat-card-title>
+
+  <form (ngSubmit)="saveDevice()" #deviceForm="ngForm" style="display: flex; flex-direction: column; gap: 16px;">
+    <mat-form-field appearance="fill">
+      <mat-label>Nombre</mat-label>
+      <input matInput type="text" [(ngModel)]="selectedDevice.name" name="name" required #name="ngModel" />
+      <mat-error *ngIf="name.invalid && name.touched">El nombre es obligatorio.</mat-error>
+    </mat-form-field>
+
+    <mat-form-field appearance="fill">
+      <mat-label>Descripción</mat-label>
+      <input matInput type="text" [(ngModel)]="selectedDevice.description" name="description" />
+    </mat-form-field>
+
+    <mat-form-field appearance="fill">
+      <mat-label>MAC</mat-label>
+      <input matInput type="text" [(ngModel)]="selectedDevice.mac" name="mac" (ngModelChange)="actualizarMac($event)" required #mac="ngModel" />
+      <mat-error *ngIf="mac.invalid && mac.touched">La MAC es obligatoria.</mat-error>
+    </mat-form-field>
+
+    <mat-form-field appearance="fill">
+      <mat-label>IMEI</mat-label>
+      <input matInput type="text" [(ngModel)]="selectedDevice.imei" name="imei" (ngModelChange)="actualizarDeviceId()" required #imei="ngModel" pattern="[0-9]*" />
+      <mat-error *ngIf="imei.invalid && imei.touched">El IMEI debe contener solo números.</mat-error>
+    </mat-form-field>
+
+    <mat-form-field appearance="fill">
+      <mat-label>Device ID</mat-label>
+      <input matInput type="text" [(ngModel)]="selectedDevice.deviceId" name="deviceId" readonly />
+    </mat-form-field>
+
+    <div style="display: flex; justify-content: flex-end; gap: 8px;">
+      <button mat-raised-button color="primary" type="submit" [disabled]="deviceForm.invalid">Guardar</button>
+      <button mat-button type="button" (click)="cancelEdit()">Cancelar</button>
+    </div>
+  </form>
+</mat-card>
+<mat-table [dataSource]="dataSource" class="mat-elevation-z8" *ngIf="!loading && !error">
+
+  <ng-container matColumnDef="name">
+    <mat-header-cell *matHeaderCellDef> Nombre </mat-header-cell>
+    <mat-cell *matCellDef="let device"> {{ device.name }} </mat-cell>
+  </ng-container>
+
+  <ng-container matColumnDef="description">
+    <mat-header-cell *matHeaderCellDef> Descripción </mat-header-cell>
+    <mat-cell *matCellDef="let device"> {{ device.description }} </mat-cell>
+  </ng-container>
+
+  <ng-container matColumnDef="mac">
+    <mat-header-cell *matHeaderCellDef> MAC </mat-header-cell>
+    <mat-cell *matCellDef="let device"> {{ device.mac }} </mat-cell>
+  </ng-container>
+
+  <ng-container matColumnDef="imei">
+    <mat-header-cell *matHeaderCellDef> IMEI </mat-header-cell>
+    <mat-cell *matCellDef="let device"> {{ device.imei }} </mat-cell>
+  </ng-container>
+
+  <ng-container matColumnDef="deviceId">
+    <mat-header-cell *matHeaderCellDef> Device ID </mat-header-cell>
+    <mat-cell *matCellDef="let device"> {{ formatearDeviceId(device.deviceId) }} </mat-cell>
+  </ng-container>
+
+  <ng-container matColumnDef="acciones">
+    <mat-header-cell *matHeaderCellDef> Acciones </mat-header-cell>
+    <mat-cell *matCellDef="let device">
+      <button mat-icon-button color="primary" (click)="editDevice(device)" matTooltip="Editar dispositivo">
+        <mat-icon>edit</mat-icon>
+      </button>
+      <button mat-icon-button color="warn" (click)="removeDevice(device)" matTooltip="Eliminar dispositivo">
+        <mat-icon>delete</mat-icon>
+      </button>
+    </mat-cell>
+  </ng-container>
+
+  <mat-header-row *matHeaderRowDef="displayedColumns" class="header-theme"></mat-header-row>
+  <mat-row *matRowDef="let row; columns: displayedColumns;"></mat-row>
+
+</mat-table>

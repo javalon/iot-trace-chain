@@ -55,5 +55,13 @@ __pycache__/
 *.cache
 *.log
 
-.minio_data/
 minio-mirror/*
+
+# Temporary folders
+.minio_data/
+.app-postgres-data/
+.hardhat-data/
+.hardhat_node/
+.ganache-db/
+minio-mirror/
+blockchain/deploy-info.*.json

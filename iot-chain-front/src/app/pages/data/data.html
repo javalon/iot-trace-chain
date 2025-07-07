@@ -1,0 +1,119 @@
+<div style="display: flex; align-items: center; justify-content: flex-start; margin-bottom: 16px; gap:20px">
+    <mat-form-field appearance="fill">
+      <mat-label>Selecciona un dispositivo</mat-label>
+      <mat-select [(ngModel)]="selectedDeviceId" (selectionChange)="onDeviceChange($event)">
+        <mat-option *ngFor="let device of devices" [value]="device.id">
+          {{ device.name }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field appearance="fill">
+      <mat-label>Selecciona fecha y hora</mat-label>
+      <mat-date-range-input [rangePicker]="picker" [min]="minRangeDate" [max]="maxRangeDate" [disabled]="!selectedDeviceId || noDeviceData">
+        <input matStartDate placeholder="Start date" [min]="minRangeDate" [max]="maxRangeDate" [(ngModel)]="selectedDateTo" name="startDate" (dateChange)="onDateChange()" />
+        <input matEndDate placeholder="End date" [min]="minRangeDate" [max]="maxRangeDate" [(ngModel)]="selectedDateFrom" name="endDate" (dateChange)="onDateChange()"/>
+      </mat-date-range-input>
+      <mat-hint>DD/MM/YYYY – DD/MM/YYYY</mat-hint>
+      <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
+      <mat-date-range-picker #picker></mat-date-range-picker>
+    </mat-form-field>
+    <div *ngIf="selectedDeviceId && selectedDateFrom && selectedDateTo" class="device-info">
+      <p><strong>IMEI:</strong> {{ deviceInfor.imei }}</p>
+      <p><strong>MAC:</strong> {{ deviceInfor.mac }}</p>
+      <p matTooltip="{{ deviceInfor.deviceId }}"><strong>Device ID:</strong> {{ deviceInfor.deviceIdShort }}</p>
+    </div>
+    <div style="height: 40px;margin-right: 0;margin-left: auto; display: flex; align-items: center; gap: 8px;">
+        <button mat-raised-button color="primary" (click)="refreshData()"  *ngIf="!dataLoading && selectedDeviceId">
+            <mat-icon style="margin-left: 4px;" fontIcon="refresh"></mat-icon>
+        </button>
+        <button mat-raised-button color="primary" (click)="verifyAllMerkle()" *ngIf="!dataLoading && deviceDataSource?.length">
+            Verificar todas
+            <mat-icon style="margin-left: 4px;" fontIcon="fact_check"></mat-icon>
+        </button>
+        <button mat-raised-button color="primary" (click)="exportToCSV()" *ngIf="!dataLoading && deviceDataSource?.length">
+            Exportar CSV
+            <mat-icon style="margin-left: 4px;" fontIcon="save_alt"></mat-icon>
+        </button>
+    </div>
+</div>
+
+<div style="display: flex; justify-content: center; margin-top: 16px;">
+    <div *ngIf="noDeviceData" class="no-data-message">
+        <mat-icon aria-hidden="false" aria-label="Info" fontIcon="info"></mat-icon>
+        <span>No hay datos disponibles para el dispositivo seleccionado.</span>
+    </div>
+
+    <mat-spinner *ngIf="dataLoading"></mat-spinner>
+</div>
+<div *ngIf="error" style="color: red; text-align: center;">{{ error }}</div>
+<mat-table [dataSource]="deviceDataSource" class="mat-elevation-z8" *ngIf="deviceDataSource?.length">
+
+  <ng-container *ngFor="let column of displayedColumns.slice(0, -1)" [matColumnDef]="column">
+    <mat-header-cell *matHeaderCellDef>{{ column | titlecase }}</mat-header-cell>
+    <mat-cell *matCellDef="let element">{{ element[column] }}</mat-cell>
+  </ng-container>
+
+  <ng-container [matColumnDef]="displayedColumns[displayedColumns.length - 1]">
+    <mat-header-cell *matHeaderCellDef>{{ displayedColumns[displayedColumns.length - 1] | titlecase }}</mat-header-cell>
+    <mat-cell *matCellDef="let element">
+      <mat-expansion-panel>
+        <mat-expansion-panel-header>
+          <span style="margin-right: 1em;">Blockchain Data</span>
+                <mat-icon *ngIf="element.proofData.verified === null" fontIcon="help" matTooltip="Aun no verificado." style="color: black;"></mat-icon>
+                <mat-icon *ngIf="element.proofData.verified === true" fontIcon="check_circle" matTooltip="Verificado. El dato no ha sido modificado." style="color:green;"></mat-icon>
+                <mat-icon *ngIf="element.proofData.verified === false" fontIcon="error" matTooltip="Fallo en la verificación" style="color: red;"></mat-icon>
+        </mat-expansion-panel-header>
+        <ng-template matExpansionPanelContent>
+          <p *ngIf="!element.proofData">No hay datos en la blockchain para este registro.</p>
+            <div *ngIf="element.proofData">
+              <p>
+                <strong>Tx:</strong> {{element.proofData.txHash}}
+                <button mat-icon-button matTooltip="Copiar Tx" (click)="copyToClipboard(element.proofData.txHash)">
+                  <mat-icon>content_copy</mat-icon>
+                </button>
+              </p>
+              <p>
+                <strong>Hash:</strong> {{element.proofData.hash}}
+                <button mat-icon-button matTooltip="Copiar Hash" (click)="copyToClipboard(element.proofData.hash)">
+                  <mat-icon>content_copy</mat-icon>
+                </button>
+              </p>
+              <p>
+                <strong>RecordId:</strong> {{element.proofData.recordId}}
+                <button mat-icon-button matTooltip="Copiar RecordId" (click)="copyToClipboard(element.proofData.recordId)">
+                  <mat-icon>content_copy</mat-icon>
+                </button>
+              </p>
+              <p *ngIf="element.proofData.merkleRoot">
+                <strong>Merkle root:</strong> {{element.proofData.merkleRoot}}
+                <button mat-icon-button matTooltip="Copiar Merkle root" (click)="copyToClipboard(element.proofData.merkleRoot)">
+                  <mat-icon>content_copy</mat-icon>
+                </button>
+              </p>
+              <p *ngIf="!element.proofData.merkleRoot">
+                <strong>Merkle root:</strong> (Pulse el botón Verificar para conseguirla del blockchain)
+              </p>
+            </div>
+            <mat-form-field style="width: 100%; margin-top: 16px;">
+              <mat-label>Merkle Proof json</mat-label>
+              <textarea matInput [value]="element.proofData.merkleProof | json" readonly cdkTextareaAutosize #autosize="cdkTextareaAutosize"></textarea>
+              <button mat-icon-button matSuffix (click)="copyToClipboard(element.proofData.merkleProof)">
+                <mat-icon>content_copy</mat-icon>
+              </button>
+            </mat-form-field>
+            
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <button matButton="elevated" color="primary" (click)="verifyMerkle(element)" *ngIf="element.proofData.verified != true">Verificar</button>
+                <mat-icon *ngIf="element.proofData.verified === null" fontIcon="help" matTooltip="Aun no verificado. Pulse Verificar." style="color: black;"></mat-icon>
+                <mat-icon *ngIf="element.proofData.verified === true" fontIcon="check_circle" matTooltip="Verificado. El dato no ha sido modificado." style="color:green;"></mat-icon>
+                <mat-icon *ngIf="element.proofData.verified === false" fontIcon="error" matTooltip="Fallo en la verificación" style="color: red;"></mat-icon>
+            </div>
+        </ng-template>
+      </mat-expansion-panel>
+    </mat-cell>
+  </ng-container>
+
+  <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
+  <mat-row *matRowDef="let row; columns: displayedColumns;"></mat-row>
+
+</mat-table>
