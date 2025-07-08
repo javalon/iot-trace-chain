@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, Inject } from '@angular/core';
+import { Component, Inject, inject } from '@angular/core';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectChange, MatSelectModule } from '@angular/material/select';
 import { FormsModule } from '@angular/forms';
@@ -62,12 +62,13 @@ export class Data {
     deviceId: '',
     deviceIdShort: ''
   }
-  private snackBar = Inject(MatSnackBar);
+ private snackBar = inject(MatSnackBar);
 
   constructor(
     @Inject(GraphQLService) private graphQLService: GraphQLService,
     @Inject(Web3Service) private web3Service: Web3Service
   ) {
+    
     this.fetchUserDevices();
   }
 
